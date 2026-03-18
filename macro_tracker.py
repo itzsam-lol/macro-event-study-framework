@@ -175,13 +175,18 @@ def fetch_live_data() -> pd.DataFrame | None:
     for evt in EVENT_TYPES:
         try:
             if evt == "FOMC":
-                # Use FEDFUNDS which is monthly - every observation is a meeting/hold date
+                # Use FEDFUNDS (monthly) and filter to the 8 standard meeting months per year
                 s = fred.get_series("FEDFUNDS", observation_start=start, observation_end=end)
                 if s is None or s.empty: continue
                 
-                # Surprise = actual vs prior month, including holds (diff=0)
-                changes = s.diff().dropna()
-                print(f"[DEBUG] FOMC: actual events captured={len(changes)}")
+                # Resample and diff
+                s_monthly = s.resample("MS").last()
+                changes = s_monthly.diff().dropna()
+                
+                # Filter to Jan, Mar, May, Jun, Jul, Sep, Nov, Dec (Standard FOMC schedule)
+                fomc_months = [1, 3, 5, 6, 7, 9, 11, 12]
+                changes = changes[changes.index.month.isin(fomc_months)]
+                print(f"[DEBUG] FOMC: exactly {len(changes)} meeting dates captured")
             elif evt == "PMI":
                 s = None
                 for sid in ['NAPM', 'MSPMI', 'ISM/MAN_PMI']:
