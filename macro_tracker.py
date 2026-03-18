@@ -175,13 +175,14 @@ def fetch_live_data() -> pd.DataFrame | None:
     for evt in EVENT_TYPES:
         try:
             if evt == "FOMC":
-                s = fred.get_series("FEDFUNDS",
-                                    observation_start=start,
-                                    observation_end=end)
-                # Surprise = size of the rate change reported by FRED
+                # Use daily target rate to capture all 8 meetings/year precisely
+                s = fred.get_series("DFEDTARU", observation_start=start, observation_end=end)
+                if s is None or s.empty:
+                    s = fred.get_series("FEDFUNDS", observation_start=start, observation_end=end)
+                
                 changes = s.diff().dropna()
                 changes = changes[changes != 0]
-                print(f"[DEBUG] FOMC: raw s={len(s)}, after filter={len(changes)}")
+                print(f"[DEBUG] FOMC: actual events captured={len(changes)}")
             elif evt == "PMI":
                 s = None
                 for sid in ['NAPM', 'MSPMI', 'ISM/MAN_PMI']:
