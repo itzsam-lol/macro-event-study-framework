@@ -181,8 +181,12 @@ def fetch_live_data() -> pd.DataFrame | None:
                 if s is None or s.empty: continue
                 # Keep only dates where rate actually changed
                 changed = s[s != s.shift(1)].dropna()
-                # Surprise = the size of the move (positive = hike, negative = cut)
+                # Surprise = size of the move (positive = hike, negative = cut)
                 changes = changed.diff().dropna()
+                # Add back the first observation as a change from zero baseline
+                if not changed.empty:
+                    first_val = pd.Series([changed.iloc[0]], index=[changed.index[0]])
+                    changes = pd.concat([first_val, changes])
             elif evt == "PMI":
                 s = None
                 for sid in ['NAPM', 'MSPMI', 'ISM/MAN_PMI']:
@@ -426,7 +430,14 @@ def panel_heatmap(ax, df: pd.DataFrame):
 
     vmax = max(abs(np.nanmin(matrix)), abs(np.nanmax(matrix)), 0.5)
     cmap = LinearSegmentedColormap.from_list("rg", [NEG_COLOR, "#1a1a2e", POS_COLOR])
-    im = ax.imshow(matrix, cmap=cmap, aspect="auto", vmin=-vmax, vmax=vmax)
+    
+    # Invert VIX row signs for visual/color mapping only (Red = Spike = Bad)
+    display_matrix = matrix.copy()
+    if "VIX" in labels:
+        vix_idx = labels.index("VIX")
+        display_matrix[vix_idx, :] = -display_matrix[vix_idx, :]
+        
+    im = ax.imshow(display_matrix, cmap=cmap, aspect="auto", vmin=-vmax, vmax=vmax)
 
     ax.set_xticks(range(len(HORIZONS)))
     ax.set_xticklabels(HORIZONS, fontsize=9)
@@ -498,6 +509,12 @@ def panel_scatter(ax, df: pd.DataFrame):
                           color=TEXT_COLOR, fontweight="bold",
                           bbox=dict(boxstyle="round,pad=0.3", facecolor=PANEL_BG,
                                     edgecolor=BORDER_COLOR, alpha=0.9))
+            
+            # Highlight FOMC as the strongest lead signal
+            if evt == "FOMC" and r**2 > 0.08:
+                inner_ax.text(0.05, 0.78, "strongest signal",
+                              transform=inner_ax.transAxes, fontsize=6.5,
+                              color=EVENT_COLORS["FOMC"], style="italic")
 
         inner_ax.set_title(evt, color=EVENT_COLORS[evt], fontsize=10, fontweight="bold")
         inner_ax.tick_params(colors=MUTED_TEXT, labelsize=7, length=3)
@@ -796,7 +813,7 @@ def build_dashboard(df: pd.DataFrame):
     panel_summary_table(ax7, df)
 
     # Watermark
-    fig.text(0.95, 0.008, "Built with FRED + yfinance | github.com/yourname",
+    fig.text(0.95, 0.008, "Built with FRED + yfinance | github.com/itzsam-lol",
              fontsize=7, color="#3a3d4d", ha="right", style="italic")
 
     # Save
