@@ -175,13 +175,12 @@ def fetch_live_data() -> pd.DataFrame | None:
     for evt in EVENT_TYPES:
         try:
             if evt == "FOMC":
-                # Use daily target rate to capture all 8 meetings/year precisely
-                s = fred.get_series("DFEDTARU", observation_start=start, observation_end=end)
-                if s is None or s.empty:
-                    s = fred.get_series("FEDFUNDS", observation_start=start, observation_end=end)
+                # Use FEDFUNDS which is monthly - every observation is a meeting/hold date
+                s = fred.get_series("FEDFUNDS", observation_start=start, observation_end=end)
+                if s is None or s.empty: continue
                 
+                # Surprise = actual vs prior month, including holds (diff=0)
                 changes = s.diff().dropna()
-                changes = changes[changes != 0]
                 print(f"[DEBUG] FOMC: actual events captured={len(changes)}")
             elif evt == "PMI":
                 s = None
@@ -693,14 +692,16 @@ def panel_vol_regime(ax, df: pd.DataFrame):
         means_evt, sems_evt = [], []
         for regime in labels_regime:
             g = sub[(sub["regime"] == regime) & (sub["event"] == evt)]["vix_ret"]
-            means_evt.append(g.mean() if len(g) > 0 else 0)
-            sems_evt.append(g.sem() if len(g) > 1 else 0)
+            means_evt.append(g.median() if len(g) > 0 else 0)
+            sems_evt.append(g.std() if len(g) > 1 else 0)
 
         offsets = group_positions + (i - n_events / 2 + 0.5) * bar_width
         ax.bar(offsets, means_evt, width=bar_width, color=EVENT_COLORS[evt],
                alpha=0.85, edgecolor="white", linewidth=0.3, label=evt, zorder=3)
         ax.errorbar(offsets, means_evt, yerr=sems_evt, fmt="none", ecolor="#E8EAF0",
                     elinewidth=1.2, capsize=4, capthick=1.2, alpha=0.7, zorder=4)
+        
+    ax.set_ylim(-5, 5)
 
     ax.set_xticks(group_positions)
     ax.set_xticklabels(labels_regime, fontsize=10)
