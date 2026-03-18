@@ -178,15 +178,10 @@ def fetch_live_data() -> pd.DataFrame | None:
                 s = fred.get_series("FEDFUNDS",
                                     observation_start=start,
                                     observation_end=end)
-                if s is None or s.empty: continue
-                # Keep only dates where rate actually changed
-                changed = s[s != s.shift(1)].dropna()
-                # Surprise = size of the move (positive = hike, negative = cut)
-                changes = changed.diff().dropna()
-                # Add back the first observation as a change from zero baseline
-                if not changed.empty:
-                    first_val = pd.Series([changed.iloc[0]], index=[changed.index[0]])
-                    changes = pd.concat([first_val, changes])
+                # Surprise = size of the rate change reported by FRED
+                changes = s.diff().dropna()
+                changes = changes[changes != 0]
+                print(f"[DEBUG] FOMC: raw s={len(s)}, after filter={len(changes)}")
             elif evt == "PMI":
                 s = None
                 for sid in ['NAPM', 'MSPMI', 'ISM/MAN_PMI']:
@@ -655,9 +650,9 @@ def panel_cumulative(ax, df: pd.DataFrame):
     else:
         insight = "Cumulative SPY returns tracking over this period"
 
-    ax.text(0.01, 0.97, insight,
+    ax.text(0.01, 0.06, insight,
             transform=ax.transAxes, color="#8B90A7", fontsize=8, style="italic",
-            ha="left", va="top", zorder=5)
+            ha="left", va="bottom", zorder=5)
 
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=4))
