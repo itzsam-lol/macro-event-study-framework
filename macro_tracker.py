@@ -58,7 +58,7 @@ EVENT_COLORS = {
 
 ASSETS = ["SPY", "EURUSD=X", "TLT", "^VIX"]
 ASSET_LABELS = {"SPY": "SPY", "EURUSD=X": "EUR/USD", "TLT": "TLT", "^VIX": "VIX"}
-HORIZONS = ["T+1h", "T+4h", "T+1d", "T+1w"]
+HORIZONS = ["T=0d", "T+1d", "T+2d", "T+1w"]
 EVENT_TYPES = ["CPI", "NFP", "PMI", "FOMC"]
 
 FRED_SERIES = {
@@ -244,17 +244,13 @@ def fetch_live_data() -> pd.DataFrame | None:
     for asset in ASSETS:
         try:
             ticker = yf.Ticker(asset)
-            # Pull hourly for intraday, daily for multi-day
-            hist_h = ticker.history(start=start - pd.Timedelta(days=10),
-                                    end=end + pd.Timedelta(days=10),
-                                    interval="1h")
             hist_d = ticker.history(start=start - pd.Timedelta(days=10),
                                     end=end + pd.Timedelta(days=10),
                                     interval="1d")
-            price_cache[asset] = {"hourly": hist_h, "daily": hist_d}
+            price_cache[asset] = {"daily": hist_d}
         except Exception as e:
             print(f"[!] yfinance error for {asset}: {e}")
-            price_cache[asset] = {"hourly": pd.DataFrame(), "daily": pd.DataFrame()}
+            price_cache[asset] = {"daily": pd.DataFrame()}
 
     rows = []
     for _, ev in events_df.iterrows():
@@ -286,28 +282,27 @@ def fetch_live_data() -> pd.DataFrame | None:
                     idx = close.index.get_indexer([ev_naive], method="ffill")[0]
                     if idx < 0 or idx >= len(close):
                         return np.nan
-                    target = min(idx + offset_periods, len(close) - 1)
-                    p0, p1 = close.iloc[idx], close.iloc[target]
+                        
+                    # offset=0: event day return (close[idx] vs close[idx-1])
+                    if offset_periods == 0:
+                        if idx == 0: return np.nan
+                        p0 = close.iloc[idx - 1]   # prior day close
+                        p1 = close.iloc[idx]       # event day close
+                    else:
+                        p0 = close.iloc[idx]
+                        target = min(idx + offset_periods, len(close) - 1)
+                        p1 = close.iloc[target]
                     return float((p1 - p0) / p0) if p0 != 0 else np.nan
                 except Exception:
                     return np.nan
 
             ev_naive = _strip_tz(pd.Timestamp(ev["date"]))
-
-            # Hourly close — strip tz once up front
-            close_h = _strip_tz_index(hist_h["Close"]) if not hist_h.empty else pd.Series(dtype=float)
             close_d = _strip_tz_index(hist_d["Close"]) if not hist_d.empty else pd.Series(dtype=float)
 
-            # T+1h: try hourly first, fall back to daily if hourly returns nan
-            t1h = get_return_from(close_h, ev_naive, 1)
-            row[f"{label}_T+1h"] = t1h if not np.isnan(t1h) else get_return_from(close_d, ev_naive, 1)
-
-            # T+4h: try hourly first, fall back to daily
-            t4h = get_return_from(close_h, ev_naive, 4)
-            row[f"{label}_T+4h"] = t4h if not np.isnan(t4h) else get_return_from(close_d, ev_naive, 1)
-
-            # T+1d and T+1w: always daily
+            # Assign daily-based horizons
+            row[f"{label}_T=0d"] = get_return_from(close_d, ev_naive, 0)
             row[f"{label}_T+1d"] = get_return_from(close_d, ev_naive, 1)
+            row[f"{label}_T+2d"] = get_return_from(close_d, ev_naive, 2)
             row[f"{label}_T+1w"] = get_return_from(close_d, ev_naive, 5)
 
             # pre_vix from daily VIX close
