@@ -2,7 +2,7 @@
 
 An institutional-grade Python framework for studying cross-asset reactions to macroeconomic event surprises (FOMC, CPI, NFP, PMI) using FRED and Yahoo Finance data.
 
-## 📊 Key Findings (3-Year Study)
+## Key Findings (3-Year Study)
 
 *   **FOMC Lead Signal**: The study identifies the FOMC rate surprise as the strongest predictive signal in the dataset ($R^2 = 0.136, \beta = 0.495$). Over 13% of next-day SPY variance is explained by the magnitude of the rate surprise alone.
 *   **Bond Rally Pattern**: TLT (Long Bonds) exhibits a distinct "buy the rumor, sell the news" behavior, rallying on the event day (+0.15% T=0d) before consistently selling off in the following session (-0.29% T+1d).
@@ -14,7 +14,7 @@ An institutional-grade Python framework for studying cross-asset reactions to ma
 *   **Data**: `fredapi` (FRED Release Data), `yfinance` (Asset Prices)
 *   **Visualization**: `matplotlib` (Tailored Dark Design), `tabulate` (Terminal Metrics)
 
-## 🚀 Quick Start
+## Quick Start
 
 1. **Install Dependencies**:
 ```bash
